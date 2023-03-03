@@ -1,20 +1,12 @@
-import { APIEventHandler } from './handler-v1';
-import { APIEventHandlerV2 } from './handler-v2';
-import { Router } from './router';
-import { RouterConfig, VersionedHandlerType } from './types';
+import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
+
+import { handler } from './handler';
+import { router, Router } from './router';
 
 export const LambdaRouter = {
-  build: (routes: <R>(router: Router<R>) => Router<R>, config?: RouterConfig): VersionedHandlerType<'V1'> => {
-    const routeDef = routes(Router());
+  build: (routes: <R>(router: Router<R>) => Router<R>): APIGatewayProxyHandlerV2 => {
+    const routeDef = routes(router());
 
-    return APIEventHandler(routeDef, config);
-  },
-};
-
-export const LambdaRouterV2 = {
-  build: (routes: <R>(router: Router<R>) => Router<R>, config?: RouterConfig): VersionedHandlerType<'V2'> => {
-    const routeDef = routes(Router());
-
-    return APIEventHandlerV2(routeDef, config);
+    return handler(routeDef);
   },
 };

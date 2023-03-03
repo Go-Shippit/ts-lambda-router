@@ -1,5 +1,5 @@
 {
-  "name": "@go-shippit/ts-lambda-router",
+  "name": "@go-shippit/lyne-lambda-router-v2",
   "version": "1.0.0",
   "license": "UNLICENSED",
   "private": true,

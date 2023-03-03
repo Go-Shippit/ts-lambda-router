@@ -1,41 +1,9 @@
 /* eslint-disable @typescript-eslint/ban-types */
 
 import { Static, TSchema } from '@sinclair/typebox';
-import { APIGatewayProxyHandler, APIGatewayProxyHandlerV2 } from 'aws-lambda';
 
 import { PathParamParser, PathParamParsers } from './path-param-parser';
 import { Responses, Response, StatusCode } from './router';
-
-export type Logger = {
-  info: (msg: string, metadata?: object) => void;
-};
-
-export type CorsConfig = {
-  allowCredentials: boolean;
-  allowHeaders: string[] | '*';
-  allowMethods: string[] | '*';
-  allowOrigin: string[] | string;
-};
-
-export type RouterConfig = {
-  corsConfig?: CorsConfig | true;
-  defaultHeaders?: Record<string, string>;
-  logger?: Logger;
-  logConfig?: {
-    logger?: Logger;
-    ignoredHeaders?: string[];
-    logRequestBody?: boolean;
-    logRequests?: boolean;
-    logResponseBody?: boolean;
-    logResponses?: boolean;
-  };
-};
-
-export type APIGatewayVersion = 'V1' | 'V2';
-
-export type VersionedHandlerType<V extends APIGatewayVersion> = V extends 'V1'
-  ? APIGatewayProxyHandler
-  : APIGatewayProxyHandlerV2;
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 type _<T> = T;
