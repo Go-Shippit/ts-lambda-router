@@ -1,19 +1,20 @@
 import Ajv from 'ajv';
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import * as FP from 'fp-ts';
-import { isLeft } from 'fp-ts/lib/These';
+import qs from 'qs';
 
-import { parsePathParams, parseQueryParams, PathParamRegex } from './path-param-parser';
-import { response } from './response';
+import { parsePathParams, PathParamRegex } from './path-param-parser';
 import { RouteHandlers } from './router';
+import { isReadOnlyMethod, response } from './utils';
 
 const ajv = new Ajv({ strict: false });
 
 export const handler: (routes: RouteHandlers) => APIGatewayProxyHandlerV2 =
   ({ handlers }) =>
-  (event, ctx) => {
+  (event, context) => {
+    const httpMethod = event.requestContext.http.method.toLowerCase();
+
     const route = handlers
-      .filter(h => event.requestContext.http.method.toLowerCase() === h.method.toLowerCase())
+      .filter(h => httpMethod === h.method.toLowerCase())
       .filter(h => {
         const handlerSegments = h.url.split('?')[0].split('/');
         const routeSegments = event.rawPath.split('?')[0].split('/');
@@ -24,64 +25,41 @@ export const handler: (routes: RouteHandlers) => APIGatewayProxyHandlerV2 =
         );
       })[0];
 
-    if (route) {
-      const path = route.url.split('?')[0];
-      const query = event.rawQueryString;
-      const pathParams = parsePathParams(decodeURIComponent(event.rawPath), path);
-      const queryParams = event.queryStringParameters
-        ? parseQueryParams(event.queryStringParameters || {}, {}, query)
-        : FP.either.right({});
-      const bodyObj = event.body ? JSON.parse(event.body) : null;
-      const isValidBody = route.body ? ajv.validate(route.body, bodyObj) : true;
-
-      if (isValidBody) {
-        const tupled = FP.function.pipe(
-          pathParams,
-          FP.either.chain(p =>
-            FP.function.pipe(
-              queryParams,
-              FP.either.map(qp => [p, qp] as const)
-            )
-          )
-        );
-        if (FP.either.isRight(tupled)) {
-          return route
-            .handler(
-              {
-                pathParams: tupled.right[0],
-                queryParams: tupled.right[1],
-                body: bodyObj,
-                response: (sc, bod, h) =>
-                  Promise.resolve({
-                    statusCode: sc,
-                    body: bod,
-                    headers: h,
-                  }),
-              },
-              {
-                originalEvent: event,
-                context: ctx,
-              }
-            )
-            .then(r => ({
-              statusCode: r.statusCode,
-              body: r.body ? JSON.stringify(r.body) : '',
-              headers: {
-                ...{ 'content-type': 'application/json' },
-                ...r.headers,
-              },
-            }));
-        }
-
-        return Promise.resolve(
-          response(isLeft(pathParams) || isLeft(queryParams) ? 400 : 404, {
-            message: isLeft(pathParams) || isLeft(queryParams) ? 'Bad Request' : 'Not Found',
-          })
-        );
-      }
-
-      return Promise.resolve(response(422, { message: 'Schema Invalid.' }));
+    if (!route) {
+      return Promise.resolve(response(404, { message: 'Not found' }));
     }
 
-    return Promise.resolve(response(404, { message: 'Not found' }));
+    try {
+      const body = event.body ? JSON.parse(event.body) : null;
+      const pathParams = parsePathParams(decodeURIComponent(event.rawPath), route.url.split('?')[0]);
+      const queryParams = qs.parse(event.rawQueryString);
+
+      const isValidSchema = route.bodyOrQueryParamsSchema
+        ? ajv.validate(route.bodyOrQueryParamsSchema, isReadOnlyMethod(httpMethod) ? queryParams : body)
+        : true;
+
+      if (!isValidSchema) {
+        return Promise.resolve(response(400, { message: 'Bad Request.' }));
+      }
+
+      return route.handler(
+        {
+          pathParams,
+          queryParams,
+          body,
+          response: (statusCode, body, headers) =>
+            Promise.resolve({
+              statusCode,
+              body: JSON.stringify(body),
+              headers: { 'content-type': 'application/json', ...headers },
+            }),
+        },
+        {
+          originalEvent: event,
+          context,
+        }
+      );
+    } catch {
+      return Promise.resolve(response(400, { message: 'Bad Request.' }));
+    }
   };

@@ -1,147 +1,57 @@
-import {
-  APIGatewayProxyEventMultiValueQueryStringParameters,
-  APIGatewayProxyEventQueryStringParameters,
-} from 'aws-lambda';
-import * as FP from 'fp-ts';
-import * as L from 'fp-ts/Array';
-import * as E from 'fp-ts/Either';
-import { Either, left, right, getApplicativeValidation } from 'fp-ts/lib/Either';
-import { Semigroup } from 'fp-ts/lib/Semigroup';
-import matchAll from 'string.prototype.matchall';
+/* eslint-disable @typescript-eslint/explicit-member-accessibility */
 
-export type ParserError = { errors: string[] };
 export type PathParamParser<T> = {
-  parse: (s: string[]) => Either<ParserError, T>;
-};
-
-const PaserErrorSemigroup: Semigroup<ParserError> = {
-  concat: (a, b) => ({
-    errors: a.errors.concat(b.errors),
-  }),
+  parse: (s: string[]) => T;
 };
 
 export class PathParamParsers {
   string: PathParamParser<string> = {
-    parse: s => right(decodeURIComponent(s[0])),
+    parse: s => decodeURIComponent(s[0]),
   };
   int: PathParamParser<number> = {
     parse: s => {
       const result = parseInt(s[0]);
 
-      return isNaN(result) ? left({ errors: [`Invalid int in path param: ${s}`] }) : right(result);
-    },
-  };
-  float: PathParamParser<number> = {
-    parse: s => {
-      const result = parseFloat(s[0]);
+      if (isNaN(result)) {
+        throw new Error(`Invalid int in path param: ${s}`);
+      }
 
-      return isNaN(result) ? left({ errors: [`Invalid float in path param: ${s}`] }) : right(result);
-    },
-  };
-  'string[]': PathParamParser<string[]> = {
-    parse: s => right(s.map(decodeURIComponent)),
-  };
-  'int[]': PathParamParser<number[]> = {
-    parse: s => {
-      const A = getApplicativeValidation(PaserErrorSemigroup);
-
-      return L.traverse(A)(this.float.parse)(s.map(i => [i]));
-    },
-  };
-
-  'float[]': PathParamParser<number[]> = {
-    parse: s => {
-      const A = getApplicativeValidation(PaserErrorSemigroup);
-
-      return L.traverse(A)(this.float.parse)(s.map(i => [i]));
+      return result;
     },
   };
 }
 
-export const PathParamRegex = /\{([^\}/]+)\}/;
-export const parsePathParams = (incomingUrl: string, pathSpec: string): Either<string[], Record<string, unknown>> => {
-  type Parsers = keyof PathParamParsers;
-  const parsers = new PathParamParsers() as Record<Parsers, PathParamParser<unknown>>;
-  const incomingPathSegments = incomingUrl.split('/');
+export const PathParamRegex = /\{([^}/]+)\}/;
+
+export function parsePathParams(url: string, pathSpec: string): Record<string, number | string> {
+  const parsers = new PathParamParsers();
+
+  const pathSegments = url.split('/');
   const pathSpecSegments = pathSpec.split('/');
-  if (incomingPathSegments.length != pathSpecSegments.length) {
-    return left(['Invalid incoming url']);
+
+  if (pathSegments.length !== pathSpecSegments.length) {
+    throw new Error('Invalid URL.');
   }
 
-  return pathSpecSegments.reduce(
-    (prev, n, ix) =>
-      FP.function.pipe(
-        prev,
-        E.chain(p => {
-          const params = PathParamRegex.exec(n);
-          if (params) {
-            const param = params[1];
-            const key = param.split(':')[0];
-            const parserName = param.split(':')[1];
-            const parser: PathParamParser<unknown> | undefined = parsers[parserName as unknown as Parsers];
-            const originalParam = incomingPathSegments[ix];
-            const value = parser ? parser.parse([originalParam]) : right(originalParam);
+  return pathSpecSegments.reduce((acc, v, i) => {
+    const params = PathParamRegex.exec(v);
 
-            return FP.function.pipe(
-              value,
-              E.mapLeft(e => e.errors),
-              E.map(val => ({
-                ...p,
-                [key]: val,
-              }))
-            );
-          }
+    if (!params) {
+      return acc;
+    }
 
-          return right<string[], {}>(p);
-        })
-      ),
-    right<string[], {}>({})
-  );
-};
+    const param = params[1];
+    const key = param.split(':')[0];
 
-const QueryParamRegex = /\{([^\}/]+)/g;
-export const parseQueryParams = (
-  pathParams: APIGatewayProxyEventQueryStringParameters,
-  multiPathParams: APIGatewayProxyEventMultiValueQueryStringParameters,
-  querySpec: string
-): FP.either.Either<string[], Record<string, unknown>> => {
-  type Parsers = keyof PathParamParsers;
-  const parsers = new PathParamParsers() as Record<Parsers, PathParamParser<unknown>>;
+    const parser = parsers[(param.split(':')[1] || 'string') as keyof PathParamParsers];
 
-  return [...matchAll(querySpec, QueryParamRegex)].reduce(
-    (p, n) =>
-      FP.function.pipe(
-        p,
-        FP.either.chain(p => {
-          const param = n[1];
-          if (param) {
-            const keySpec = param.split(':')[0];
-            const key = keySpec.split('?')[0];
-            const isNullable = keySpec.endsWith('?');
-            const originalParam = pathParams[key] || multiPathParams[key];
-            if (!isNullable && !originalParam) {
-              return FP.either.left([`Query param not found: ${key}`]);
-            }
-            const parserName = param.split(':')[1];
-            const parser: PathParamParser<unknown> | undefined = parsers[parserName as unknown as Parsers];
-            const value =
-              parser && originalParam
-                ? parser.parse(Array.isArray(originalParam) ? originalParam : [originalParam])
-                : right(originalParam);
+    if (!parser) {
+      throw new Error('Invalid parser.');
+    }
 
-            return FP.function.pipe(
-              value,
-              E.mapLeft(e => e.errors),
-              E.map(val => ({
-                ...p,
-                [key]: val,
-              }))
-            );
-          }
-
-          return FP.either.right(p);
-        })
-      ),
-    right<string[], {}>({})
-  );
-};
+    return {
+      ...acc,
+      [key]: parser.parse([pathSegments[i]]),
+    };
+  }, {});
+}

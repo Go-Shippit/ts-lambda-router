@@ -1,13 +1,10 @@
 /* eslint-disable @typescript-eslint/ban-types, @typescript-eslint/no-unused-vars */
 
-import { Static, TSchema } from '@sinclair/typebox';
-
 import { PathParamParser, PathParamParsers } from './path-param-parser';
 import { Response } from './router';
 
 type _<T> = T;
 export type Merge<T> = _<{ [k in keyof T]: T[k] }>;
-export type Trim<T> = T extends `/${infer Rest}${'' | '/'}` ? Trim<Rest> : T;
 
 type TypeOfParser<T> = T extends PathParamParser<infer A> ? A : never;
 type ParserType<T extends keyof PathParamParsers> = TypeOfParser<PathParamParsers[T]>;

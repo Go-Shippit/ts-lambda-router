@@ -3,10 +3,15 @@ import { APIGatewayProxyEventV2, Context } from 'aws-lambda';
 
 import { Request } from './types';
 
+interface Test {
+  context: Context;
+  originalEvent: APIGatewayProxyEventV2;
+}
+
 interface RouteHandler {
   url: string;
   method: string;
-  body?: TSchema;
+  bodyOrQueryParamsSchema?: TSchema;
   handler: (
     req: {
       body: any;
@@ -14,59 +19,48 @@ interface RouteHandler {
       queryParams: any;
       response: (statusCode: number, body: any, handlers?: Record<string, string>) => Promise<Response>;
     },
-    apiParams: {
-      context: Context;
-      originalEvent: APIGatewayProxyEventV2;
-    }
+    apiParams: Test
   ) => Promise<Response>;
 }
 
 export interface RouteHandlers {
-  handlers: readonly RouteHandler[];
+  handlers: RouteHandler[];
 }
 
-type HttpMethod<R> = <A extends string, B extends TSchema = never>(
-  path: A,
+type HttpMethod = <A extends string, B extends TSchema = never>(
+  url: A,
   bodyOrQueryParamsConfig?: B
-) => (
-  handler: (
-    req: Request<A, Static<B>>,
-    apiParams: { context: Context; originalEvent: APIGatewayProxyEventV2 }
-  ) => Promise<Response>
-) => Router<R>;
+) => (handler: (req: Request<A, Static<B>>, apiParams: Test) => Promise<Response>) => Router;
 
-export type Router<R> = R & {
-  get: HttpMethod<R>;
-  head: HttpMethod<R>;
-  options: HttpMethod<R>;
-  post: HttpMethod<R>;
-  put: HttpMethod<R>;
-  delete: HttpMethod<R>;
+export type Router = RouteHandlers & {
+  get: HttpMethod;
+  head: HttpMethod;
+  options: HttpMethod;
+  post: HttpMethod;
+  put: HttpMethod;
+  delete: HttpMethod;
 };
 
-export type Response = {
+export interface Response {
   statusCode: number;
-  body: unknown;
+  body: any;
   headers?: Record<string, string>;
-};
+}
 
-export function router(handlers: RouteHandler[] = []): Router<RouteHandlers> {
+export function router(handlers: RouteHandler[] = []): Router {
   const buildHandler =
-    (method: 'delete' | 'get' | 'head' | 'options' | 'post' | 'put'): HttpMethod<RouteHandlers> =>
+    (method: 'delete' | 'get' | 'head' | 'options' | 'post' | 'put'): HttpMethod =>
     <B extends TSchema>(url: string, bodyOrQueryParamsSchema?: B) =>
-    handler => {
-      const isReadOnlyMethod = ['get', 'options', 'head'].includes(method);
-
-      return router([
+    handler =>
+      router([
         {
           url,
           method,
-          body: isReadOnlyMethod ? undefined : bodyOrQueryParamsSchema,
+          bodyOrQueryParamsSchema,
           handler,
         },
         ...handlers,
       ]);
-    };
 
   return {
     handlers,
