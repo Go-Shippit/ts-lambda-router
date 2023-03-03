@@ -30,11 +30,11 @@ export interface RouteHandlers {
   handlers: readonly RouteHandler[];
 }
 
-type HttpMethod<R, M extends HTTPMethod> = <
+type HttpMethod<R> = <
   A extends string,
-  S extends StatusCode,
+  S extends number,
   B extends TSchema = never,
-  Resp extends Responses = AnyType
+  Resp extends Responses = Record<number, TAny>
 >(
   path: A,
   bodyOrQueryParamsConfig?: B,
@@ -42,64 +42,40 @@ type HttpMethod<R, M extends HTTPMethod> = <
 ) => (
   handler: (
     req: Request<A, Static<B>, Resp>,
-    originalEvent: { context: Context; originalEvent: APIGatewayProxyEventV2 }
+    apiParams: { context: Context; originalEvent: APIGatewayProxyEventV2 }
   ) => Promise<Response<Resp, S>>
 ) => Router<R>;
 
 export type Router<R> = R & {
-  get: HttpMethod<R, 'get'>;
-  head: HttpMethod<R, 'head'>;
-  options: HttpMethod<R, 'options'>;
-  post: HttpMethod<R, 'post'>;
-  put: HttpMethod<R, 'put'>;
-  delete: HttpMethod<R, 'delete'>;
+  get: HttpMethod<R>;
+  head: HttpMethod<R>;
+  options: HttpMethod<R>;
+  post: HttpMethod<R>;
+  put: HttpMethod<R>;
+  delete: HttpMethod<R>;
 };
-
-type HTTPRead = 'get' | 'head' | 'options';
-type HTTPWrite = 'delete' | 'post' | 'put';
-type HTTPMethod = HTTPRead | HTTPWrite;
 
 type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = {
   [K in Keys]-?: Partial<Pick<T, Exclude<Keys, K>>> & Required<Pick<T, K>>;
 }[Keys] &
   Pick<T, Exclude<keyof T, Keys>>;
-export type Responses = RequireAtLeastOne<{ [k in StatusCode]: TSchema }>;
+export type Responses = RequireAtLeastOne<{ [k in number]: TSchema }>;
 
-export type Response<R extends Responses, Status extends StatusCode> = {
+export type Response<R extends Responses, Status extends number> = {
   statusCode: Status;
-  headers?: {
-    [header: string]: boolean | number | string;
-  };
   body: Status extends keyof R ? ExtractSchema<R[Status]> : any;
-};
-
-const StatusCodes = [
-  200, 201, 202, 203, 204, 205, 206, 207, 208, 226, 300, 301, 302, 303, 304, 305, 306, 307, 308, 400, 401, 402, 403,
-  404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 420, 422, 423, 424, 425, 426, 428, 429,
-  431, 444, 449, 450, 451, 499, 500, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 598, 599,
-] as const;
-export type StatusCode = (typeof StatusCodes)[number] & number;
-export type AnyType = Record<StatusCode, TAny>;
-const DefaultResponses = {
-  200: Type.Any({
-    description: 'OK',
-  }),
+  headers?: Record<string, string>;
 };
 
 export function router(handlers: readonly RouteHandler[] = []): Router<RouteHandlers> {
   const buildHandler =
-    <M extends HTTPMethod>(method: M): HttpMethod<RouteHandlers, M> =>
-    <A extends string, B extends TSchema, S extends StatusCode, R extends Responses = AnyType>(
-      path: A,
+    (method: 'delete' | 'get' | 'head' | 'options' | 'post' | 'put'): HttpMethod<RouteHandlers> =>
+    <B extends TSchema, R extends Responses = Record<number, TAny>>(
+      path: string,
       bodyOrQueryParamsSchema?: B,
       routeConfig?: RouteConfig<R>
     ) =>
-    (
-      handler: (
-        req: Request<A, Static<B>, R>,
-        originalEvent: { context: Context; originalEvent: APIGatewayProxyEventV2 }
-      ) => Promise<Response<R, S>>
-    ) => {
+    handler => {
       const isReadOnlyMethod = ['get', 'options', 'head'].includes(method);
 
       return router([
@@ -108,7 +84,9 @@ export function router(handlers: readonly RouteHandler[] = []): Router<RouteHand
           method,
           body: isReadOnlyMethod ? undefined : bodyOrQueryParamsSchema,
           handler,
-          responses: routeConfig?.responsesSchema || DefaultResponses,
+          responses: routeConfig?.responsesSchema || {
+            200: Type.Any({ message: 'OK' }),
+          },
         },
         ...handlers,
       ]);

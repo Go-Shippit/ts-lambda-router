@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/ban-types */
+/* eslint-disable @typescript-eslint/ban-types, @typescript-eslint/no-unused-vars */
 
 import { Static, TSchema } from '@sinclair/typebox';
 
 import { PathParamParser, PathParamParsers } from './path-param-parser';
-import { Responses, Response, StatusCode } from './router';
+import { Responses, Response } from './router';
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
 type _<T> = T;
 export type Merge<T> = _<{ [k in keyof T]: T[k] }>;
 export type Trim<T> = T extends `/${infer Rest}${'' | '/'}` ? Trim<Rest> : T;
@@ -29,27 +28,13 @@ type PathParams<A extends string, Seed = {}> = A extends `{${infer AA}}${infer T
   ? Merge<PathParam<AA> & Seed>
   : Seed;
 
-type UrlParam<S extends string, P = string> = S extends `${infer Var}:${infer VarType}`
-  ? VarType extends keyof PathParamParsers
-    ? UrlParam<Var, ParserType<VarType>>
-    : never
-  : S extends `${infer Var}?`
-  ? { readonly [key in Var]?: P }
-  : S extends `${infer Var}`
-  ? { readonly [key in Var]: P }
-  : never;
-
-type QueryParams<A extends string, Seed = {}> = A extends `{${infer AA}}${infer Tail}`
-  ? Merge<QueryParams<Tail> & Seed & UrlParam<AA>>
-  : Seed;
-
 export type ExtractSchema<T> = T extends TSchema ? Static<T> : any;
 
-export type Request<Url extends string, Body, R extends Responses> = {
+export type Request<Url extends string, BodyOrQueryParams, R extends Responses> = {
+  body: BodyOrQueryParams;
   pathParams: Url extends `${infer P}?${infer _}` ? PathParams<P> : PathParams<Url>;
-  queryParams: Url extends `${infer _}?${infer Q}` ? QueryParams<Q> : never;
-  body: Body;
-  response: <S extends StatusCode>(
+  queryParams: BodyOrQueryParams;
+  response: <S extends number>(
     s: S,
     body: S extends keyof R ? ExtractSchema<R[S]> : any,
     headers?: Record<string, string>

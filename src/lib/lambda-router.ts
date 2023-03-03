@@ -4,9 +4,5 @@ import { handler } from './handler';
 import { router, Router } from './router';
 
 export const LambdaRouter = {
-  build: (routes: <R>(router: Router<R>) => Router<R>): APIGatewayProxyHandlerV2 => {
-    const routeDef = routes(router());
-
-    return handler(routeDef);
-  },
+  build: (routes: <R>(router: Router<R>) => Router<R>): APIGatewayProxyHandlerV2 => handler(routes(router())),
 };

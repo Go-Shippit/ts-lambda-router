@@ -1,6 +1,5 @@
 import {
   APIGatewayProxyEventMultiValueQueryStringParameters,
-  APIGatewayProxyEventPathParameters,
   APIGatewayProxyEventQueryStringParameters,
 } from 'aws-lambda';
 import * as FP from 'fp-ts';
