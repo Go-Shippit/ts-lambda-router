@@ -1,0 +1,6 @@
+{
+  "extends": ["@go-shippit/eslint-config-lyne"],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "off"
+  }
+}

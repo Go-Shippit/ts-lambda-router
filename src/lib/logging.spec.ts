@@ -1,19 +1,20 @@
-import { APIGatewayProxyEvent } from "aws-lambda";
-import { logRequestResponse } from "./logging";
+import { APIGatewayProxyEvent } from 'aws-lambda';
 
-describe("logRequestResponse", () => {
+import { logRequestResponse } from './logging';
+
+describe('logRequestResponse', () => {
   const info = jest.fn().mockReturnValue({});
   const logger = {
     info,
   };
-  it("should log request", () => {
+  it('should log request', () => {
     const request = {
-      path: "/home",
+      path: '/home',
       headers: {
-        "content-type": "application/json",
+        'content-type': 'application/json',
       },
-      httpMethod: "get",
-      body: JSON.stringify({ name: "Hello World" }),
+      httpMethod: 'get',
+      body: JSON.stringify({ name: 'Hello World' }),
     } as unknown as APIGatewayProxyEvent;
     logRequestResponse(request, {
       logConfig: {
@@ -26,14 +27,14 @@ describe("logRequestResponse", () => {
     expect(args).toMatchObject(request);
   });
 
-  it("should log request with obfuscated body", () => {
+  it('should log request with obfuscated body', () => {
     const request = {
-      path: "/home",
+      path: '/home',
       headers: {
-        "content-type": "application/json",
+        'content-type': 'application/json',
       },
-      httpMethod: "get",
-      body: JSON.stringify({ name: "Hello World" }),
+      httpMethod: 'get',
+      body: JSON.stringify({ name: 'Hello World' }),
     } as unknown as APIGatewayProxyEvent;
     logRequestResponse(request, {
       logConfig: {
@@ -42,29 +43,32 @@ describe("logRequestResponse", () => {
       },
     });
     const args = info.mock.calls[0][1];
-    const {body, ...sansBody} = request
+    const { body, ...sansBody } = request;
     expect(args).toMatchObject(sansBody);
   });
-  it("should log request with removed headers", () => {
+  it('should log request with removed headers', () => {
     const request = {
-      path: "/home",
+      path: '/home',
       headers: {
-        "content-type": "application/json",
-        "authorization": "Bearer super-secret"
+        'content-type': 'application/json',
+        authorization: 'Bearer super-secret',
       },
-      httpMethod: "get",
-      body: JSON.stringify({ name: "Hello World" }),
+      httpMethod: 'get',
+      body: JSON.stringify({ name: 'Hello World' }),
     } as unknown as APIGatewayProxyEvent;
     logRequestResponse(request, {
       logConfig: {
         logger,
         logRequests: true,
         logRequestBody: true,
-        ignoredHeaders: ['Authorization']
+        ignoredHeaders: ['Authorization'],
       },
     });
     const args = info.mock.calls[0][1];
-    const { headers: {authorization}, ...rest} = request
+    const {
+      headers: { authorization },
+      ...rest
+    } = request;
     expect(args).toMatchObject(rest);
   });
 });

@@ -1,26 +1,26 @@
-import { APIGatewayProxyEvent, APIGatewayProxyEventV2, APIGatewayProxyResult, APIGatewayProxyResultV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
-import { RouterConfig } from "./types";
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyEventV2,
+  APIGatewayProxyResult,
+  APIGatewayProxyResultV2,
+  APIGatewayProxyStructuredResultV2,
+} from 'aws-lambda';
+
+import { RouterConfig } from './types';
 
 const keysExcept = (r: Record<string, unknown>, ignore?: string[]) =>
   ((ignore || []).length
-    ? Object.keys(r).filter(
-        (h) => !ignore?.find((igh) => igh.toLowerCase() === h.toLowerCase())
-      )
+    ? Object.keys(r).filter(h => !ignore?.find(igh => igh.toLowerCase() === h.toLowerCase()))
     : Object.keys(r)
   ).reduce((p, n) => ({ ...p, [n]: r[n] }), {});
 
-export const logRequestResponse = (
-  event: APIGatewayProxyEvent | APIGatewayProxyResult,
-  config?: RouterConfig
-) => {
+export const logRequestResponse = (event: APIGatewayProxyEvent | APIGatewayProxyResult, config?: RouterConfig) => {
   const { logConfig } = config || {};
   const logger = logConfig?.logger || (config || {}).logger;
   if (logger && logConfig?.logRequests) {
     const { body, headers, multiValueHeaders, ...rest } = event;
-    const headersToLog = headers  ? keysExcept(headers, logConfig.ignoredHeaders) : {};
-    const mvHeadersToLog = multiValueHeaders
-      ? keysExcept(multiValueHeaders, logConfig.ignoredHeaders)
-      : {};
+    const headersToLog = headers ? keysExcept(headers, logConfig.ignoredHeaders) : {};
+    const mvHeadersToLog = multiValueHeaders ? keysExcept(multiValueHeaders, logConfig.ignoredHeaders) : {};
     const bodyToLog = logConfig.logRequestBody ? body : undefined;
     const objectToLog = {
       ...rest,
@@ -28,10 +28,9 @@ export const logRequestResponse = (
       headers: headersToLog,
       multiValueHeaders: mvHeadersToLog,
     };
-    logger.info("Request received", objectToLog);
+    logger.info('Request received', objectToLog);
   }
 };
-
 
 export const logRequestResponsev2 = (
   event: APIGatewayProxyEventV2 | APIGatewayProxyStructuredResultV2,
@@ -41,7 +40,7 @@ export const logRequestResponsev2 = (
   const logger = logConfig?.logger || (config || {}).logger;
   if (logger && logConfig?.logRequests) {
     const { body, headers, ...rest } = event;
-    const headersToLog = headers  ? keysExcept(headers, logConfig.ignoredHeaders) : {};
+    const headersToLog = headers ? keysExcept(headers, logConfig.ignoredHeaders) : {};
 
     const bodyToLog = logConfig.logRequestBody ? body : undefined;
     const objectToLog = {
@@ -49,6 +48,6 @@ export const logRequestResponsev2 = (
       ...(bodyToLog ? { body: bodyToLog } : undefined),
       headers: headersToLog,
     };
-    logger.info("Request received", objectToLog);
+    logger.info('Request received', objectToLog);
   }
 };
