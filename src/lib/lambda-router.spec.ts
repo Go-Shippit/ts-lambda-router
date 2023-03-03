@@ -160,7 +160,7 @@ describe('ApiHandler', () => {
       routes.get(
         '/name/{name}/age/{age:int}',
         Type.Object({ gender: Type.Optional(Type.String()) })
-      )(r => r.response(200, { ...r.pathParams, ...r.queryParams, ...r.body }))
+      )(r => r.response(200, { ...r.pathParams, ...r.queryParams }))
     );
 
     const result = await testHandler(handler)({

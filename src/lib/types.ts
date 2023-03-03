@@ -25,9 +25,9 @@ type PathParams<A extends string, Seed = {}> = A extends `{${infer AA}}${infer T
   ? Merge<PathParam<AA> & Seed>
   : Seed;
 
-export type Request<Url extends string, BodyOrQueryParams> = {
-  body: BodyOrQueryParams;
+export type Request<Url extends string, IsReadOnlyHttpMethod extends boolean, Schema> = {
+  body: IsReadOnlyHttpMethod extends false ? Schema : never;
   pathParams: Url extends `${infer P}?${infer _}` ? PathParams<P> : PathParams<Url>;
-  queryParams: BodyOrQueryParams;
+  queryParams: IsReadOnlyHttpMethod extends true ? Schema : never;
   response: (s: number, body: unknown, headers?: Record<string, string>) => Promise<Response>;
 };

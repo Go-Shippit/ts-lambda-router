@@ -3,7 +3,11 @@ import { APIGatewayProxyEventV2, Context } from 'aws-lambda';
 
 import { Request } from './types';
 
-interface Test {
+type HTTPRead = 'get' | 'head' | 'options';
+type HTTPWrite = 'delete' | 'post' | 'put';
+type HTTPMethod = HTTPRead | HTTPWrite;
+
+interface RequestContext {
   context: Context;
   originalEvent: APIGatewayProxyEventV2;
 }
@@ -19,7 +23,7 @@ interface RouteHandler {
       queryParams: any;
       response: (statusCode: number, body: any, handlers?: Record<string, string>) => Promise<Response>;
     },
-    apiParams: Test
+    requestContext: RequestContext
   ) => Promise<Response>;
 }
 
@@ -27,18 +31,23 @@ export interface RouteHandlers {
   handlers: RouteHandler[];
 }
 
-type HttpMethod = <A extends string, B extends TSchema = never>(
-  url: A,
-  bodyOrQueryParamsConfig?: B
-) => (handler: (req: Request<A, Static<B>>, apiParams: Test) => Promise<Response>) => Router;
+type HttpMethod<M extends HTTPMethod> = <URL extends string, S extends TSchema = never>(
+  url: URL,
+  bodyOrQueryParamsConfig?: S
+) => (
+  handler: (
+    req: Request<URL, M extends HTTPRead ? true : false, Static<S>>,
+    requestContext: RequestContext
+  ) => Promise<Response>
+) => Router;
 
 export type Router = RouteHandlers & {
-  get: HttpMethod;
-  head: HttpMethod;
-  options: HttpMethod;
-  post: HttpMethod;
-  put: HttpMethod;
-  delete: HttpMethod;
+  get: HttpMethod<'get'>;
+  head: HttpMethod<'head'>;
+  options: HttpMethod<'options'>;
+  post: HttpMethod<'post'>;
+  put: HttpMethod<'put'>;
+  delete: HttpMethod<'delete'>;
 };
 
 export interface Response {
@@ -49,7 +58,7 @@ export interface Response {
 
 export function router(handlers: RouteHandler[] = []): Router {
   const buildHandler =
-    (method: 'delete' | 'get' | 'head' | 'options' | 'post' | 'put'): HttpMethod =>
+    <M extends HTTPMethod>(method: M): HttpMethod<M> =>
     <B extends TSchema>(url: string, bodyOrQueryParamsSchema?: B) =>
     handler =>
       router([
