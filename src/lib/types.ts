@@ -3,7 +3,7 @@
 import { Static, TSchema } from '@sinclair/typebox';
 
 import { PathParamParser, PathParamParsers } from './path-param-parser';
-import { Responses, Response } from './router';
+import { Response } from './router';
 
 type _<T> = T;
 export type Merge<T> = _<{ [k in keyof T]: T[k] }>;
@@ -28,15 +28,9 @@ type PathParams<A extends string, Seed = {}> = A extends `{${infer AA}}${infer T
   ? Merge<PathParam<AA> & Seed>
   : Seed;
 
-export type ExtractSchema<T> = T extends TSchema ? Static<T> : any;
-
-export type Request<Url extends string, BodyOrQueryParams, R extends Responses> = {
+export type Request<Url extends string, BodyOrQueryParams> = {
   body: BodyOrQueryParams;
   pathParams: Url extends `${infer P}?${infer _}` ? PathParams<P> : PathParams<Url>;
   queryParams: BodyOrQueryParams;
-  response: <S extends number>(
-    s: S,
-    body: S extends keyof R ? ExtractSchema<R[S]> : any,
-    headers?: Record<string, string>
-  ) => Promise<Response<R, S>>;
+  response: (s: number, body: unknown, headers?: Record<string, string>) => Promise<Response>;
 };

@@ -1,49 +1,38 @@
-import { Static, TAny, TSchema, Type } from '@sinclair/typebox';
+import { Static, TSchema } from '@sinclair/typebox';
 import { APIGatewayProxyEventV2, Context } from 'aws-lambda';
 
-import { ExtractSchema, Request } from './types';
-
-interface RouteConfig<R extends Responses> {
-  responsesSchema?: R;
-}
+import { Request } from './types';
 
 interface RouteHandler {
   url: string;
   method: string;
   body?: TSchema;
-  responses: Responses;
   handler: (
     req: {
       body: any;
       pathParams: any;
       queryParams: any;
-      response: (statusCode: number, body: any, handlers?: Record<string, string>) => Promise<Response<any, any>>;
+      response: (statusCode: number, body: any, handlers?: Record<string, string>) => Promise<Response>;
     },
     apiParams: {
       context: Context;
       originalEvent: APIGatewayProxyEventV2;
     }
-  ) => Promise<Response<any, any>>;
+  ) => Promise<Response>;
 }
 
 export interface RouteHandlers {
   handlers: readonly RouteHandler[];
 }
 
-type HttpMethod<R> = <
-  A extends string,
-  S extends number,
-  B extends TSchema = never,
-  Resp extends Responses = Record<number, TAny>
->(
+type HttpMethod<R> = <A extends string, B extends TSchema = never>(
   path: A,
-  bodyOrQueryParamsConfig?: B,
-  routeConfig?: RouteConfig<Resp>
+  bodyOrQueryParamsConfig?: B
 ) => (
   handler: (
-    req: Request<A, Static<B>, Resp>,
+    req: Request<A, Static<B>>,
     apiParams: { context: Context; originalEvent: APIGatewayProxyEventV2 }
-  ) => Promise<Response<Resp, S>>
+  ) => Promise<Response>
 ) => Router<R>;
 
 export type Router<R> = R & {
@@ -55,38 +44,25 @@ export type Router<R> = R & {
   delete: HttpMethod<R>;
 };
 
-type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = {
-  [K in Keys]-?: Partial<Pick<T, Exclude<Keys, K>>> & Required<Pick<T, K>>;
-}[Keys] &
-  Pick<T, Exclude<keyof T, Keys>>;
-export type Responses = RequireAtLeastOne<{ [k in number]: TSchema }>;
-
-export type Response<R extends Responses, Status extends number> = {
-  statusCode: Status;
-  body: Status extends keyof R ? ExtractSchema<R[Status]> : any;
+export type Response = {
+  statusCode: number;
+  body: unknown;
   headers?: Record<string, string>;
 };
 
-export function router(handlers: readonly RouteHandler[] = []): Router<RouteHandlers> {
+export function router(handlers: RouteHandler[] = []): Router<RouteHandlers> {
   const buildHandler =
     (method: 'delete' | 'get' | 'head' | 'options' | 'post' | 'put'): HttpMethod<RouteHandlers> =>
-    <B extends TSchema, R extends Responses = Record<number, TAny>>(
-      path: string,
-      bodyOrQueryParamsSchema?: B,
-      routeConfig?: RouteConfig<R>
-    ) =>
+    <B extends TSchema>(url: string, bodyOrQueryParamsSchema?: B) =>
     handler => {
       const isReadOnlyMethod = ['get', 'options', 'head'].includes(method);
 
       return router([
         {
-          url: path,
+          url,
           method,
           body: isReadOnlyMethod ? undefined : bodyOrQueryParamsSchema,
           handler,
-          responses: routeConfig?.responsesSchema || {
-            200: Type.Any({ message: 'OK' }),
-          },
         },
         ...handlers,
       ]);
